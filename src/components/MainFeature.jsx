@@ -1,10 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import getIcon from '../utils/iconUtils';
+import { AuthContext } from '../App';
+import { 
+  fetchProperties, 
+  createProperty, 
+  updateProperty,
+  deleteProperty 
+} from '../services/propertyService';
 
 // Icons
-const HeartIcon = getIcon('Heart');
+const HeartIcon = getIcon('Heart'); 
 const PhoneIcon = getIcon('Phone');
 const BedDoubleIcon = getIcon('BedDouble');
 const BathIcon = getIcon('Bath');
@@ -13,100 +20,17 @@ const HomeIcon = getIcon('Home');
 const BuildingIcon = getIcon('Building');
 const TagIcon = getIcon('Tag');
 const PlusIcon = getIcon('Plus');
-const XIcon = getIcon('X');
+const XIcon = getIcon('X'); 
 const LoaderIcon = getIcon('Loader');
+const TrashIcon = getIcon('Trash');
 
-// Sample property data
-const sampleProperties = [
-  {
-    id: 1,
-    title: "Modern Apartment with Balcony",
-    price: 325000,
-    type: "sale",
-    category: "apartment",
-    address: "123 Maple Street, New York, NY",
-    bedrooms: 2,
-    bathrooms: 2,
-    area: 1200,
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=870&q=80",
-    featured: true,
-    new: true
-  },
-  {
-    id: 2,
-    title: "Spacious Family Home with Garden",
-    price: 750000,
-    type: "sale",
-    category: "house",
-    address: "456 Oak Avenue, San Francisco, CA",
-    bedrooms: 4,
-    bathrooms: 3,
-    area: 2400,
-    image: "https://images.unsplash.com/photo-1576941089067-2de3c901e126?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1086&q=80",
-    featured: true,
-    new: false
-  },
-  {
-    id: 3,
-    title: "Luxury Penthouse with City Views",
-    price: 4500,
-    type: "rent",
-    category: "apartment",
-    address: "789 Pine Boulevard, Chicago, IL",
-    bedrooms: 3,
-    bathrooms: 2,
-    area: 1800,
-    image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1080&q=80",
-    featured: true,
-    new: true
-  },
-  {
-    id: 4,
-    title: "Cozy Studio in Downtown",
-    price: 1200,
-    type: "rent",
-    category: "apartment",
-    address: "101 Cedar Lane, Boston, MA",
-    bedrooms: 1,
-    bathrooms: 1,
-    area: 600,
-    image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80",
-    featured: false,
-    new: true
-  },
-  {
-    id: 5,
-    title: "Renovated Townhouse with Garage",
-    price: 485000,
-    type: "sale",
-    category: "house",
-    address: "202 Elm Street, Seattle, WA",
-    bedrooms: 3,
-    bathrooms: 2.5,
-    area: 1750,
-    image: "https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80",
-    featured: true,
-    new: false
-  },
-  {
-    id: 6,
-    title: "Waterfront Cottage",
-    price: 3200,
-    type: "rent",
-    category: "house",
-    address: "303 Beach Road, Miami, FL",
-    bedrooms: 2,
-    bathrooms: 1,
-    area: 900,
-    image: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80",
-    featured: true,
-    new: true
-  }
-];
-
-const MainFeature = ({ activeFilter }) => {
+const MainFeature = ({ activeFilter, searchQuery }) => {
   const [properties, setProperties] = useState([]);
-  const [favorites, setFavorites] = useState([]);
+  const [favorites, setFavorites] = useState(() => {
+    const saved = localStorage.getItem('favorites');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newProperty, setNewProperty] = useState({
@@ -121,49 +45,98 @@ const MainFeature = ({ activeFilter }) => {
     image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1080&q=80"
   });
 
-  // Simulate data loading
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setProperties(sampleProperties);
-      setLoading(false);
-    }, 800);
-    
-    return () => clearTimeout(timer);
-  }, []);
+  // Access the authentication context
+  const { isAuthenticated, user } = useContext(AuthContext);
 
-  // Filter properties based on activeFilter
+  // Save favorites to localStorage when they change
   useEffect(() => {
+    localStorage.setItem('favorites', JSON.stringify(favorites));
+  }, [favorites]);
+
+  // Fetch properties from the API with filters
+  const loadProperties = async () => {
     setLoading(true);
-    
-    const timer = setTimeout(() => {
-      let filteredProps = [...sampleProperties];
-      
-      if (activeFilter === 'sale') {
-        filteredProps = filteredProps.filter(p => p.type === 'sale');
-      } else if (activeFilter === 'rent') {
-        filteredProps = filteredProps.filter(p => p.type === 'rent');
-      } else if (activeFilter === 'new') {
-        filteredProps = filteredProps.filter(p => p.new);
-      }
-      
-      setProperties(filteredProps);
-      setLoading(false);
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, [activeFilter]);
+    try {
+      // Build filters based on activeFilter and searchQuery
+      const filters = {};
 
-  const toggleFavorite = (id) => {
-    if (favorites.includes(id)) {
-      setFavorites(favorites.filter(favId => favId !== id));
+      if (activeFilter === 'sale') {
+        filters.type = 'sale';
+      } else if (activeFilter === 'rent') {
+        filters.type = 'rent';
+      } else if (activeFilter === 'new') {
+        filters.new = true;
+      }
+
+      if (searchQuery) {
+        filters.searchQuery = searchQuery;
+      }
+
+      const propertiesData = await fetchProperties(filters);
+      setProperties(propertiesData);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading properties:', error);
+      toast.error('Failed to load properties');
+      setProperties([]);
+      setLoading(false);
+    }
+  };
+
+  // Load properties initially and when filter or search changes
+  useEffect(() => {
+    loadProperties();
+  }, [activeFilter, searchQuery]);
+
+  const toggleFavorite = (propertyId) => {
+    if (!isAuthenticated) {
+      toast.info("Please log in to save favorites");
+      return;
+    }
+    
+    if (favorites.includes(propertyId)) {
+      setFavorites(favorites.filter(favId => favId !== propertyId));
       toast.info("Removed from favorites");
     } else {
-      setFavorites([...favorites, id]);
+      setFavorites([...favorites, propertyId]);
       toast.success("Added to favorites");
     }
   };
 
+  const handleRemoveProperty = async (propertyId) => {
+    if (!isAuthenticated) {
+      toast.error("You must be logged in to perform this action");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to delete this property?")) {
+      try {
+        setLoading(true);
+        await deleteProperty(propertyId);
+        
+        // Update local state to remove the property
+        setProperties(properties.filter(p => p.Id !== propertyId));
+        
+        // Remove from favorites if it was favorited
+        if (favorites.includes(propertyId)) {
+          setFavorites(favorites.filter(id => id !== propertyId));
+        }
+        
+        toast.success("Property deleted successfully");
+        setLoading(false);
+      } catch (error) {
+        console.error('Error deleting property:', error);
+        toast.error("Failed to delete property");
+        setLoading(false);
+      }
+    }
+  };
+
   const handleContactAgent = (property) => {
+    if (!isAuthenticated) {
+      toast.info("Please log in to contact agents");
+      return;
+    }
     toast.success(`Contact request sent for: ${property.title}`);
   };
 
@@ -177,26 +150,40 @@ const MainFeature = ({ activeFilter }) => {
     });
   };
 
-  const handleAddProperty = (e) => {
+  const handleAddProperty = async (e) => {
     e.preventDefault();
+
+    if (!isAuthenticated) {
+      toast.error("You must be logged in to add properties");
+      return;
+    }
     
     // Validation
     if (!newProperty.title || !newProperty.price || !newProperty.address) {
       toast.error("Please fill all required fields");
       return;
     }
-    
-    const id = properties.length > 0 ? Math.max(...properties.map(p => p.id)) + 1 : 1;
-    
-    const propertyToAdd = {
-      ...newProperty,
-      id,
-      featured: true,
-      new: true
-    };
-    
-    setProperties([propertyToAdd, ...properties]);
-    setShowAddForm(false);
+
+    setLoading(true);
+    try {
+      // Add the required fields for a new property
+      const propertyToAdd = {
+        ...newProperty,
+        featured: true,
+        new: true
+      };
+      
+      // Save to database
+      const createdProperty = await createProperty(propertyToAdd);
+      
+      // Update local state with the new property
+      setProperties([createdProperty, ...properties]);
+      setShowAddForm(false);
+    } catch (error) {
+      console.error('Error adding property:', error);
+      toast.error("Failed to add property");
+    }
+    setLoading(false);
     toast.success("Property added successfully!");
     
     // Reset form
@@ -419,8 +406,8 @@ const MainFeature = ({ activeFilter }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
             {properties.map((property) => (
-              <motion.div
-                key={property.id}
+               <motion.div
+                key={property.Id}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
@@ -429,21 +416,21 @@ const MainFeature = ({ activeFilter }) => {
               >
                 <div className="relative">
                   <img 
-                    src={property.image} 
+                    src={property.image || "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1080&q=80"} 
                     alt={property.title}
                     className="w-full h-48 object-cover rounded-t-xl"
                   />
                   <button 
                     onClick={() => toggleFavorite(property.id)}
                     className="absolute top-3 right-3 p-2 rounded-full bg-white/80 dark:bg-surface-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-surface-700 transition-colors"
-                    aria-label={favorites.includes(property.id) ? "Remove from favorites" : "Add to favorites"}
+                    aria-label={favorites.includes(property.Id) ? "Remove from favorites" : "Add to favorites"}
                   >
                     <HeartIcon 
-                      className={`w-5 h-5 ${favorites.includes(property.id) 
+                      className={`w-5 h-5 ${favorites.includes(property.Id) 
                         ? 'text-red-500 fill-red-500' 
                         : 'text-surface-600 dark:text-surface-400'}`} 
                     />
-                  </button>
+                   </button>
                   
                   <div className="absolute bottom-3 left-3">
                     <span className={`
@@ -489,23 +476,35 @@ const MainFeature = ({ activeFilter }) => {
                   </div>
                   
                   <div className="pt-4 border-t border-surface-100 dark:border-surface-700 flex justify-between items-center">
-                    <div className="flex items-center gap-1">
-                      <TagIcon className="w-4 h-4 text-surface-600 dark:text-surface-400" />
-                      <span className="font-bold text-lg">
-                        ${property.type === 'rent' 
-                          ? `${property.price.toLocaleString()}/mo` 
-                          : property.price.toLocaleString()}
-                      </span>
-                    </div>
-                    
-                    <button 
-                      onClick={() => handleContactAgent(property)}
-                      className="p-2 rounded-full bg-primary/10 dark:bg-primary/20 text-primary hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors"
-                      aria-label="Contact agent"
-                    >
-                      <PhoneIcon className="w-5 h-5" />
-                    </button>
+                   <div className="flex items-center gap-1">
+                     <TagIcon className="w-4 h-4 text-surface-600 dark:text-surface-400" />
+                     <span className="font-bold text-lg">
+                       ${property.type === 'rent' 
+                         ? `${property.price.toLocaleString()}/mo` 
+                         : property.price.toLocaleString()}
+                     </span>
+                   </div>
+                   
+                   <div className="flex gap-2">
+                     <button 
+                       onClick={() => handleContactAgent(property)}
+                       className="p-2 rounded-full bg-primary/10 dark:bg-primary/20 text-primary hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors"
+                       aria-label="Contact agent"
+                     >
+                       <PhoneIcon className="w-5 h-5" />
+                     </button>
+                     
+                     {isAuthenticated && (
+                       <button 
+                         onClick={() => handleRemoveProperty(property.Id)}
+                         className="p-2 rounded-full bg-red-500/10 dark:bg-red-500/20 text-red-500 hover:bg-red-500/20 dark:hover:bg-red-500/30 transition-colors"
+                         aria-label="Delete property"
+                       >
+                         <TrashIcon className="w-5 h-5" />
+                       </button>
+                     )}
                   </div>
+                   
                 </div>
               </motion.div>
             ))}

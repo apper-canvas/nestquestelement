@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
 import MainFeature from '../components/MainFeature';
 import getIcon from '../utils/iconUtils';
-
+import { AuthContext } from '../App';
+  
 // Icons
 const HomeIcon = getIcon('Home');
 const BuildingIcon = getIcon('Building');
@@ -19,7 +20,9 @@ const fadeIn = {
 
 const Home = () => {
   const [activeFilter, setActiveFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); 
+  // Get auth context for user info
+  const { isAuthenticated, user } = useContext(AuthContext);
   
   const handleFilterChange = (filter) => {
     setActiveFilter(filter);
@@ -28,7 +31,7 @@ const Home = () => {
   
   const handleSearch = (e) => {
     e.preventDefault();
-    toast.success(`Searching for: ${searchQuery}`);
+    toast.success(`Searching for: ${searchQuery || 'all properties'}`);
   };
   
   return (
@@ -44,6 +47,12 @@ const Home = () => {
         <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1073&q=80')]"></div>
         <div className="relative z-10 px-6 py-12 md:py-20 md:px-12 lg:px-16">
           <div className="max-w-3xl">
+            {isAuthenticated && (
+              <div className="mb-4 inline-block px-4 py-1 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm">
+                Welcome back, {user?.firstName || 'User'}!
+              </div>
+            )}
+            
             <h1 className="text-3xl md:text-5xl font-bold mb-4">Find Your Dream Home with NestQuest</h1>
             <p className="text-lg md:text-xl opacity-90 mb-8">Discover thousands of properties for sale and rent in your area. Your perfect home is just a search away.</p>
             
@@ -75,7 +84,7 @@ const Home = () => {
       <section>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Featured Properties</h2>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+          <div className="flex flex-wrap gap-2 overflow-x-auto scrollbar-hide pb-2">
             <button 
               className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
               onClick={() => handleFilterChange('all')}
@@ -105,7 +114,7 @@ const Home = () => {
       </section>
       
       {/* Main Feature */}
-      <MainFeature activeFilter={activeFilter} />
+      <MainFeature activeFilter={activeFilter} searchQuery={searchQuery} />
       
       {/* Stats Section */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">
